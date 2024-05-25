@@ -2,6 +2,7 @@
 pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 import "lib/erc6551/src/examples/simple/ERC6551Account.sol";
 import "lib/erc6551/src/ERC6551Registry.sol";
@@ -59,6 +60,15 @@ contract Project6551 is ERC721Enumerable {
     //     address account = registry.account(address(implementation), 0, block.chainid, address(this), id);
     //     orderNft.mint(account, orderId);
     // }
+}
+
+contract MyERC6551Account is ERC6551Account, IERC721Receiver {
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
+        external
+        returns (bytes4)
+    {
+        return this.onERC721Received.selector;
+    }
 }
 
 contract OrderNft is ERC721 {
