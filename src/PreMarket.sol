@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.19;
 
-import "./Project.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import {Project, Project6551, OrderNft} from "./Project.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -20,13 +21,16 @@ contract PreMarket is Ownable {
     mapping(uint256 => uint256[]) public sellPreOrders; //项目id=>卖单挂单列表
     mapping(uint256 => uint256[]) public buyPreOrders; //项目id=>买单挂单列表
 
-    mapping(address => uint256[]) public userOrder; //用户address=>订单
-    mapping(uint256 => uint256[]) public peojectOrder; //项目id=>订单
+    // mapping(address => uint256[]) public userOrder; //用户address=>订单
+    mapping(uint256 => uint256[]) public peojectOrder; //项目id=>订单, 仅用于后台管理设置状态，或许可以去掉
 
     mapping(uint256 => PreOrder) public orders; //订单id=>订单，统一存储所有订单的map
 
-    event AddOrder(uint256 projectId, uint256 orderId, PreOrder order);
-    event MatchOrder(uint256 projectId, uint256 orderId, PreOrder order);
+    event AddOrder(uint256 projectId, uint256 orderId, address buyer, address seller, uint256 amount, uint256 deposit);
+    event Cancel(uint256 orderId);
+    event MatchOrder(uint256 projectId, uint256 orderId, address matcher);
+    event Delivery(uint256 projectId, uint256 orderId);
+    event Repay(uint256 projectId, uint256 orderId);
 
     /**
      * 挂单
@@ -55,50 +59,7 @@ contract PreMarket is Ownable {
         }
         peojectOrder[projectId].push(order.orderId);
         orders[order.orderId] = order;
-        emit AddOrder(projectId, order.orderId, order);
-    }
-
-    /**
-     * 吃单
-     */
-    function matchOrder(uint256 projectId, uint256 orderId, uint256 fillAmount) public payable {
-        PreOrder storage order = orders[orderId];
-        bool isBuy = order.buyer != address(0);
-        //TODO 待做拆单，先假设一次性成交
-        require(fillAmount == order.amount, "fillAmount error");
-        require(msg.value == order.deposit, "deposit error");
-
-        //设置单子
-        if (isBuy) {
-            order.seller = msg.sender;
-        } else {
-            order.buyer = msg.sender;
-        }
-        order.status = 1;
-
-        //TODO 生成ERC6551给双方
-        uint256[] storage preOrders = isBuy ? buyPreOrders[projectId] : sellPreOrders[projectId];
-
-        deleteOrder(preOrders, orderId);
-        emit MatchOrder(projectId, orderId, order);
-    }
-
-    /**
-     * 交割
-     */
-    function delivery(uint256 orderId) public {
-        PreOrder storage order = orders[orderId];
-        require(order.status == 1, "status error");
-        require(msg.sender == order.seller, "permission error");
-
-        Project.PreProject memory prj = project.getProject(order.projectId);
-        require(prj.TGETime < block.timestamp && prj.deliveryEndTime > block.timestamp, "cannot delivery");
-
-        IERC20(prj.token).transferFrom(msg.sender, order.buyer, order.amount);
-
-        //将钱转给卖家
-        Address.sendValue(payable(msg.sender), 2 * order.deposit);
-        order.status = 4;
+        emit AddOrder(projectId, order.orderId, order.buyer, order.seller, order.amount, order.deposit);
     }
 
     /**
@@ -113,6 +74,37 @@ contract PreMarket is Ownable {
 
         deleteOrder(preOrders, orderId);
         Address.sendValue(payable(msg.sender), order.deposit);
+        emit Cancel(orderId);
+    }
+
+    /**
+     * 吃单
+     */
+    function matchOrder(uint256 orderId, uint256 fillAmount) public payable {
+        PreOrder storage order = orders[orderId];
+        uint256 projectId = order.projectId;
+        Project.PreProject memory prj = project.getProject(projectId);
+
+        bool isBuy = order.buyer != address(0);
+        //TODO 待做拆单，先假设一次性成交
+        require(fillAmount == order.amount, "fillAmount error");
+        require(msg.value == order.deposit, "deposit error");
+
+        //设置单子
+        if (isBuy) {
+            order.seller = msg.sender;
+        } else {
+            order.buyer = msg.sender;
+        }
+        order.status = 1;
+
+        //生成ERC6551给双方
+        prj.project6551.mint(order.seller, orderId, false);
+        prj.project6551.mint(order.buyer, orderId, true);
+
+        uint256[] storage preOrders = isBuy ? buyPreOrders[projectId] : sellPreOrders[projectId];
+        deleteOrder(preOrders, orderId);
+        emit MatchOrder(projectId, orderId, msg.sender);
     }
 
     /**
@@ -131,6 +123,31 @@ contract PreMarket is Ownable {
     }
 
     /**
+     * 交割，暂不考虑NFT转移
+     */
+    function delivery(uint256 orderId) public {
+        PreOrder storage order = orders[orderId];
+
+        Project.PreProject memory prj = project.getProject(order.projectId);
+        require(prj.TGETime < block.timestamp && prj.deliveryEndTime > block.timestamp, "cannot delivery");
+
+        require(order.status == 1, "status error");
+        // OrderNft sellOrderNft = prj.project6551.sellOrderNft();
+        // OrderNft buyOrderNft = prj.project6551.buyOrderNft();
+
+        //穿透获取最上层拥有者比较麻烦，暂未处理
+        //require(sellOrderNft.ownerOf(orderId) == msg.sender, "permission error");
+
+        IERC20(prj.token).transferFrom(msg.sender, order.seller, order.amount);
+
+        //将钱转给卖家
+        Address.sendValue(payable(msg.sender), 2 * order.deposit);
+        order.status = 4;
+
+        emit Delivery(prj.id, orderId);
+    }
+
+    /**
      * 违约后，买家取款
      */
     function repay(uint256 orderId) public {
@@ -140,6 +157,7 @@ contract PreMarket is Ownable {
 
         require(order.status == 3 || (order.status == 2 && prj.deliveryEndTime < block.timestamp), "status error");
         Address.sendValue(payable(msg.sender), 2 * order.deposit);
+        emit Repay(prj.id, orderId);
     }
 
     /**
