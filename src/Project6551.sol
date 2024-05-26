@@ -30,8 +30,9 @@ contract Project6551 is ERC721Enumerable {
         address addr;
         if (balance == 0) {
             //不存在父NFT，铸造一个，生成TBA
-            _safeMint(to, counter);
+            _mint(to, counter);
             addr = registry.createAccount(address(implementation), 0, block.chainid, address(this), counter);
+            counter++;
         } else {
             //存在父NFT，找到一个，获取TBA
             uint256 tokenId = tokenOfOwnerByIndex(to, 0);

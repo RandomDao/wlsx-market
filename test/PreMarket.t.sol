@@ -42,8 +42,10 @@ contract PreMarketTest is Test {
         assertEq(list.length, 2);
 
         vm.prank(seller);
-        preMarket.matchOrder{value: 100}(0, 100);
-        PreMarket.PreOrder[] memory empty = preMarket.preOrdersList(0, 0);
-        assertEq(empty.length, 0);
+        preMarket.matchOrder{value: 50}(1, 50);
+
+
+        PreMarket.PreOrder[] memory left1 = preMarket.preOrdersList(0, 0);
+        assertEq(left1.length, 1);
     }
 }
