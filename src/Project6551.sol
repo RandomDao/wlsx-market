@@ -63,19 +63,19 @@ contract Project6551 is ERC721Enumerable {
     // }
 }
 
-contract MyERC6551Account is ERC6551Account, IERC721Receiver {
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
-        external
-        returns (bytes4)
-    {
-        return this.onERC721Received.selector;
-    }
-}
+// contract MyERC6551Account is ERC6551Account, IERC721Receiver {
+//     function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
+//         external
+//         returns (bytes4)
+//     {
+//         return this.onERC721Received.selector;
+//     }
+//}
 
 contract OrderNft is ERC721 {
     constructor() ERC721("ChildOrder", "ChildOrder") {}
 
     function mint(address to, uint256 tokenId) external {
-        _safeMint(to, tokenId);
+        _mint(to, tokenId);
     }
 }

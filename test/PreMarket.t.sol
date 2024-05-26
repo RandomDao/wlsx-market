@@ -21,7 +21,7 @@ contract PreMarketTest is Test {
 
     function setUp() public {
         registry = new ERC6551Registry();
-        implementation = new MyERC6551Account();
+        implementation = new ERC6551Account();
 
         token = new BaseERC20("EIGEN", "EIGEN");
         project = new Project(address(registry), payable(address(implementation)));
@@ -43,7 +43,6 @@ contract PreMarketTest is Test {
 
         vm.prank(seller);
         preMarket.matchOrder{value: 50}(1, 50);
-
 
         PreMarket.PreOrder[] memory left1 = preMarket.preOrdersList(0, 0);
         assertEq(left1.length, 1);
