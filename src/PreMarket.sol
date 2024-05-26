@@ -89,6 +89,7 @@ contract PreMarket is Ownable {
         //TODO 待做拆单，先假设一次性成交
         require(fillAmount == order.amount, "fillAmount error");
         require(msg.value == order.deposit, "deposit error");
+        require(order.status == 0, "status error");
 
         //设置单子
         if (isBuy) {
@@ -138,7 +139,7 @@ contract PreMarket is Ownable {
         //穿透获取最上层拥有者比较麻烦，暂未处理
         //require(sellOrderNft.ownerOf(orderId) == msg.sender, "permission error");
 
-        IERC20(prj.token).transferFrom(msg.sender, order.seller, order.amount);
+        IERC20(prj.token).transferFrom(msg.sender, order.buyer, order.amount);
 
         //将钱转给卖家
         Address.sendValue(payable(msg.sender), 2 * order.deposit);
