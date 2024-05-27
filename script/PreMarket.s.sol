@@ -14,12 +14,11 @@ contract PreMarketScript is Script {
 
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address registry6551 = vm.envUint("6551_REGISTRY");
+        address payable account6551 = vm.envUint("6551_ACCOUNT");
         vm.startBroadcast(deployerPrivateKey);
 
-        Project project = new Project(
-            address(0x000000006551c19487814612e58FE06813775758),
-            payable(address(0x41C8f39463A868d3A88af00cd0fe7102F30E44eC))
-        );
+        Project project = new Project(registry6551, account6551);
         PreMarket preMarket = new PreMarket(address(project));
         BaseERC20 token = new BaseERC20("EIGEN", "EIGEN");
         project.addPreProject("EIGEN", address(token), block.timestamp + 10 hours, block.timestamp + 20 hours, 0);
